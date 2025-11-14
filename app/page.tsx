@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 interface PolaroidData {
   imageUrl: string
@@ -12,6 +12,8 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0 })
+  const [imagePositions, setImagePositions] = useState<Record<string, { x: number; y: number }>>({})
+  const [dragging, setDragging] = useState<{ pageIndex: number; imageIndex: number; startX: number; startY: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pagesRef = useRef<(HTMLDivElement | null)[]>([])
 
@@ -63,7 +65,61 @@ export default function Home() {
     setHasImages(pages.length > 0)
     setIsLoading(false)
     setLoadingProgress({ current: 0, total: 0 })
+    // Reset image positions when new images are loaded
+    setImagePositions({})
   }
+
+  const getImageKey = (pageIndex: number, imageIndex: number) => `${pageIndex}-${imageIndex}`
+
+  const getImagePosition = (pageIndex: number, imageIndex: number) => {
+    const key = getImageKey(pageIndex, imageIndex)
+    return imagePositions[key] || { x: 50, y: 50 } // Default to center (50% 50%)
+  }
+
+  const handleImageMouseDown = (e: React.MouseEvent, pageIndex: number, imageIndex: number) => {
+    e.preventDefault()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDragging({
+      pageIndex,
+      imageIndex,
+      startX: e.clientX - rect.left,
+      startY: e.clientY - rect.top,
+    })
+  }
+
+
+  // Add global mouse move and up listeners for dragging
+  useEffect(() => {
+    if (dragging) {
+      const handleGlobalMouseMove = (e: MouseEvent) => {
+        const container = document.querySelector(`[data-page="${dragging.pageIndex}"][data-image="${dragging.imageIndex}"]`) as HTMLElement
+        if (!container) return
+        
+        const rect = container.getBoundingClientRect()
+        const x = ((e.clientX - rect.left) / rect.width) * 100
+        const y = ((e.clientY - rect.top) / rect.height) * 100
+
+        const clampedX = Math.max(0, Math.min(100, x))
+        const clampedY = Math.max(0, Math.min(100, y))
+
+        const key = getImageKey(dragging.pageIndex, dragging.imageIndex)
+        setImagePositions(prev => ({
+          ...prev,
+          [key]: { x: clampedX, y: clampedY }
+        }))
+      }
+      
+      const handleGlobalMouseUp = () => setDragging(null)
+      
+      window.addEventListener('mousemove', handleGlobalMouseMove)
+      window.addEventListener('mouseup', handleGlobalMouseUp)
+      
+      return () => {
+        window.removeEventListener('mousemove', handleGlobalMouseMove)
+        window.removeEventListener('mouseup', handleGlobalMouseUp)
+      }
+    }
+  }, [dragging])
 
   const loadImage = async (file: File): Promise<string | null> => {
     const isHeic = /\.heic$|\.heif$/i.test(file.name || '')
@@ -347,15 +403,15 @@ export default function Home() {
             ref={(el) => {
               pagesRef.current[pageIndex] = el
             }}
-            className="page w-[210mm] h-[297mm] my-4 mx-auto shadow-lg p-[3mm]"
+            className="page w-[210mm] h-[297mm] my-4 mx-auto shadow-lg p-[1mm]"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
-              gridAutoRows: '56mm', // Fixed height: (297mm - 6mm padding - 8mm gaps) / 5 rows = ~56mm
-              gap: '2mm',
+              gridAutoRows: '58mm', // Slightly increased to account for reduced padding
+              gap: '1mm', // Reduced gap
               backgroundColor: '#ffffff',
               background: '#ffffff',
-              alignContent: 'start', // Align items to start, don't stretch
+              alignContent: 'start',
             }}
           >
             {page.map((polaroid, index) => (
@@ -363,40 +419,46 @@ export default function Home() {
                 key={index}
                 className="flex flex-col bg-white rounded-sm overflow-hidden"
                 style={{
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                  padding: '2mm',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                  padding: '0.5mm', // Minimal padding
                   display: 'flex',
                   flexDirection: 'column',
-                  height: '56mm', // Fixed height for 5 rows
+                  height: '58mm',
                   width: '100%',
-                  minHeight: '56mm',
-                  maxHeight: '56mm',
+                  minHeight: '58mm',
+                  maxHeight: '58mm',
                 }}
               >
                 <div 
-                  className="flex-1 w-full overflow-hidden flex items-center justify-center"
+                  data-page={pageIndex}
+                  data-image={index}
+                  className="w-full overflow-hidden flex items-center justify-center relative"
                   style={{
-                    minHeight: 0,
                     width: '100%',
                     height: '100%',
                     flex: '1 1 auto',
+                    minHeight: 0,
+                    padding: 0,
+                    cursor: dragging?.pageIndex === pageIndex && dragging?.imageIndex === index ? 'grabbing' : 'grab',
                   }}
                 >
                   <img
                     src={polaroid.imageUrl}
                     alt={`Image ${index + 1}`}
+                    draggable={false}
+                    onMouseDown={(e) => handleImageMouseDown(e, pageIndex, index)}
                     style={{
                       width: '100%',
                       height: '100%',
-                      minHeight: '100%',
                       transform: 'rotate(90deg)',
                       transformOrigin: 'center center',
                       display: 'block',
                       objectFit: 'cover',
-                      objectPosition: 'center',
+                      objectPosition: `${getImagePosition(pageIndex, index).x}% ${getImagePosition(pageIndex, index).y}%`,
                       imageRendering: 'auto',
                       backfaceVisibility: 'hidden',
                       WebkitBackfaceVisibility: 'hidden',
+                      userSelect: 'none',
                     }}
                     crossOrigin="anonymous"
                   />
