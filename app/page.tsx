@@ -351,10 +351,11 @@ export default function Home() {
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
-              gridAutoRows: '1fr',
+              gridAutoRows: '56mm', // Fixed height: (297mm - 6mm padding - 8mm gaps) / 5 rows = ~56mm
               gap: '2mm',
               backgroundColor: '#ffffff',
               background: '#ffffff',
+              alignContent: 'start', // Align items to start, don't stretch
             }}
           >
             {page.map((polaroid, index) => (
@@ -366,8 +367,10 @@ export default function Home() {
                   padding: '2mm',
                   display: 'flex',
                   flexDirection: 'column',
-                  height: '100%',
+                  height: '56mm', // Fixed height for 5 rows
                   width: '100%',
+                  minHeight: '56mm',
+                  maxHeight: '56mm',
                 }}
               >
                 <div 
@@ -375,6 +378,8 @@ export default function Home() {
                   style={{
                     minHeight: 0,
                     width: '100%',
+                    height: '100%',
+                    flex: '1 1 auto',
                   }}
                 >
                   <img
@@ -383,6 +388,7 @@ export default function Home() {
                     style={{
                       width: '100%',
                       height: '100%',
+                      minHeight: '100%',
                       transform: 'rotate(90deg)',
                       transformOrigin: 'center center',
                       display: 'block',
@@ -393,14 +399,6 @@ export default function Home() {
                       WebkitBackfaceVisibility: 'hidden',
                     }}
                     crossOrigin="anonymous"
-                    onLoad={(e) => {
-                      // Ensure image maintains aspect ratio
-                      const img = e.target as HTMLImageElement
-                      if (img.naturalWidth && img.naturalHeight) {
-                        // Preserve natural aspect ratio
-                        img.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`
-                      }
-                    }}
                   />
                 </div>
               </div>
